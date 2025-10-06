@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Password Strength Checker — Web UI</title>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #0f172a;
+    color: #e2e8f0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    transition: background 0.8s;
+  }
+
+  .container {
+    background-color: #1e293b;
+    padding: 30px;
+    border-radius: 20px;
+    width: 420px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    animation: fadeIn 1s ease-in-out forwards;
+  }
+
+  h1 {
+    text-align: center;
+    color: #38bdf8;
+    margin-bottom: 15px;
+  }
+
+  input[type="password"], input[type="text"] {
+    width: 80%;
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    font-size: 1em;
+    transition: transform 0.2s, box-shadow 0.3s;
+  }
+
+  input:focus {
+    transform: scale(1.02);
+    box-shadow: 0 0 8px #06b6d4;
+  }
+
+  button {
+    background-color: #06b6d4;
+    border: none;
+    padding: 10px 15px;
+    color: #fff;
+    font-size: 1em;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.2s;
+  }
+
+  button:hover {
+    background-color: #0891b2;
+    transform: scale(1.05);
+  }
+
+  .options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  .strength {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    color: #fff;
+    margin-top: 10px;
+    transition: transform 0.3s, background-color 0.6s;
+  }
+
+  .strength.animate {
+    transform: scale(1.1);
+  }
+
+  .weak { background-color: #ef4444; }
+  .moderate { background-color: #f59e0b; }
+  .strong { background-color: #10b981; }
+
+  ul {
+    margin-top: 10px;
+    padding-left: 20px;
+  }
+
+  li {
+    margin-bottom: 5px;
+    line-height: 1.4;
+  }
+
+  #qr {
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔐 Password Strength Checker</h1>
+  <div>
+    <input type="password" id="password" placeholder="Enter your password here...">
+    <button onclick="checkPassword()">Check</button>
+  </div>
+
+  <div class="options">
+    <label><input type="checkbox" id="showPassword"> Show password</label>
+    <button onclick="generateExample()">Generate example</button>
+  </div>
+
+  <div>
+    <span id="strength-label" class="strength weak">No password checked yet.</span>
+    <ul id="advice-list"></ul>
+  </div>
+
+  <div id="qr">
+    <h3>📱 Share this tool</h3>
+    <div id="qrCanvas"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+function checkPassword() {
+  const password = document.getElementById('password').value;
+  const strengthLabel = document.getElementById('strength-label');
+  const adviceList = document.getElementById('advice-list');
+  adviceList.innerHTML = '';
+
+  const specialChars = "!@#$%^&*()_+=[]{};:\"<.>/?\\/'";
+  const issues = [];
+  let score = 0;
+
+  // Length
+  if (password.length >= 8 && password.length <= 64) score++;
+  else issues.push("Password must be 8–64 characters long.");
+
+  // Spaces
+  if (password.includes(' ')) issues.push("Remove spaces.");
+  else score++;
+
+  // Character checks
+  let hasUpper=false, hasLower=false, hasDigit=false, hasSpecial=false;
+  for (let ch of password) {
+    if (ch >= 'A' && ch <= 'Z') hasUpper = true;
+    else if (ch >= 'a' && ch <= 'z') hasLower = true;
+    else if (ch >= '0' && ch <= '9') hasDigit = true;
+    else if (specialChars.includes(ch)) hasSpecial = true;
+  }
+
+  if (!hasUpper) issues.push("Include at least one uppercase letter."); else score++;
+  if (!hasLower) issues.push("Include at least one lowercase letter."); else score++;
+  if (!hasDigit) issues.push("Include at least one digit."); else score++;
+  if (!hasSpecial) issues.push("Include at least one special character."); else score++;
+
+  // All letters or numbers
+  const allAlpha = /^[A-Za-z]+$/.test(password);
+  const allNum = /^[0-9]+$/.test(password);
+  if (allAlpha) issues.push("Mix letters with numbers/symbols.");
+  if (allNum) issues.push("Mix numbers with letters/symbols.");
+  if (!allAlpha && !allNum) score++;
+
+  // Repeats
+  if (/(.)\1\1/.test(password)) issues.push("Avoid repeating a character 3+ times."); else score++;
+
+  // Common passwords
+  const common = ["password", "123456", "qwerty", "letmein"];
+  if (common.includes(password.toLowerCase())) issues.push("Too common — pick something unique."); else score++;
+
+  // Display results
+  if (issues.length === 0) {
+    strengthLabel.textContent = "Strong 💪 Well done!";
+    strengthLabel.className = "strength strong animate";
+    adviceList.innerHTML = "<li>Excellent! 🎉 Your password meets all security requirements.</li><li>Keep it unique and private!</li>";
+  } else {
+    if (score <= 3) {
+      strengthLabel.textContent = "Weak ⚠️ Improve your password.";
+      strengthLabel.className = "strength weak animate";
+    } else {
+      strengthLabel.textContent = "Moderate 🔹 Can be stronger.";
+      strengthLabel.className = "strength moderate animate";
+    }
+    issues.forEach(msg => {
+      const li = document.createElement('li');
+      li.textContent = msg;
+      adviceList.appendChild(li);
+    });
+  }
+
+  // Animate the label briefly
+  setTimeout(() => strengthLabel.classList.remove("animate"), 300);
+}
+
+// Show password toggle
+document.getElementById('showPassword').addEventListener('change', function() {
+  const pwd = document.getElementById('password');
+  pwd.type = this.checked ? 'text' : 'password';
+});
+
+// Generate example password
+function generateExample() {
+  const examples = [
+    "Gr@ce2025!",
+    "SecuR3#Life",
+    "M@thM0del!ng",
+    "Cyb3r$afe2025",
+    "Str0ng#Mindset"
+  ];
+  document.getElementById('password').value = examples[Math.floor(Math.random() * examples.length)];
+}
+
+// QR code generation
+function generateQR() {
+  const qrDiv = document.getElementById('qrCanvas');
+  const pageURL = window.location.href;
+  new QRCode(qrDiv, {
+    text: pageURL,
+    width: 120,
+    height: 120,
+    colorDark: "#06b6d4",
+    colorLight: "#0f172a",
+    correctLevel: QRCode.CorrectLevel.H
+  });
+}
+
+window.onload = generateQR;
+</script>
+</body>
+</html>
